@@ -107,7 +107,6 @@ def index():
     # Generate and add the overall sales trend plot
     overall_trend_fig = analyze_overall_trend(princess_plus_all_regions, dwarf_plus_all_regions)
     plots["Overall Sales Trend (All Regions)"] = plot_to_base64(overall_trend_fig)
-    # There is no table associated with the overall trend plot, so no entry in tables needed.
 
     for name, preds in predictions_dict.items():
         preds = np.array(preds).flatten()  # Ensure 1D array
@@ -127,6 +126,39 @@ def index():
             'Predicted Sales': np.round(preds, 2)
         })
         tables[name] = df.to_html(classes='table table-striped', index=False, border=0, justify='center')
+
+    # Generate regional predictions after combined prediction
+    regions = ['AMR', 'Europe', 'PAC']
+    regional_predictions = {}
+    
+    for region in regions:
+        # Get predictions for this region
+        predictions, methods_predictions = combined_prediction(
+            princess_sales=princess_plus_all_regions[region],
+            dwarf_sales=dwarf_plus_all_regions[region],
+            princess_price=princess_price,
+            dwarf_price=dwarf_price,
+            superman_price=superman_price
+        )
+        regional_predictions[region] = predictions
+        
+        # Create plot for this region
+        fig, ax = plt.subplots(figsize=(6, 3))
+        ax.plot(weeks, predictions, label='Prediction', marker='o')
+        ax.plot(weeks, princess_plus_all_regions[region], label='Princess History', linestyle='--', marker='x')
+        ax.plot(weeks, dwarf_plus_all_regions[region], label='Dwarf History', linestyle='--', marker='x')
+        ax.set_title(f'Regional Prediction - {region}')
+        ax.set_xlabel('Week')
+        ax.set_ylabel('Sales')
+        ax.legend()
+        plots[f"Regional Prediction - {region}"] = plot_to_base64(fig)
+        
+        # Create table for this region
+        df = pd.DataFrame({
+            'Week': weeks,
+            'Predicted Sales': np.round(predictions, 2)
+        })
+        tables[f"Regional Prediction - {region}"] = df.to_html(classes='table table-striped', index=False, border=0, justify='center')
 
     return render_template('index.html',
         princess_price=princess_price,
@@ -158,17 +190,29 @@ def update_combined_weights():
              # For now, let's set to default if all are 0
              ts_weight = lc_weight = trend_weight = weighted_weight = 0.25
 
-        # Retrieve necessary data for prediction (assuming price doesn't change in this route)
-        # You might need to pass prices or fetch them differently if they can be changed here too
-        princess_price = 200.0 # Replace with actual way to get current price if needed
-        dwarf_price = 120.0 # Replace with actual way to get current price if needed
-        superman_price = 205.0 # Replace with actual way to get current price if needed
+        # Retrieve necessary data for prediction
+        princess_price = 200.0
+        dwarf_price = 120.0
+        superman_price = 205.0
 
-        # Using real historical sales data for AMR (assuming price changes only affect combined prediction based on AMR)
-        princess_sales = np.array([240,170,130,90,110,130,110,110,110,130,70,90,100,80,90])  # AMR region data
-        dwarf_sales = np.array([320,220,170,190,200,170,160,160,140,140,180,160,160,170,190])  # AMR region data
+        # Historical sales data for all regions
+        princess_plus_all_regions = {
+            'AMR': np.array([240,170,130,90,110,130,110,110,110,130,70,90,100,80,90]),
+            'Europe': np.array([100,80,90,80,70,60,60,60,50,50,50,80,80,60,50]),
+            'PAC': np.array([150,220,240,150,130,120,110,100,110,100,120,130,160,120,100])
+        }
 
-        # Generate individual predictions (these might be cached or passed to avoid recalculation)
+        dwarf_plus_all_regions = {
+            'AMR': np.array([320,220,170,190,200,170,160,160,140,140,180,160,160,170,190]),
+            'Europe': np.array([80,100,60,100,100,90,80,80,80,70,90,80,80,80,70]),
+            'PAC': np.array([230,210,140,140,140,150,140,175,140,90,90,100,110,100,90])
+        }
+
+        # Using AMR data for combined prediction
+        princess_sales = princess_plus_all_regions['AMR']
+        dwarf_sales = dwarf_plus_all_regions['AMR']
+
+        # Generate individual predictions for AMR
         arima_preds = time_series_weighted_prediction(princess_sales, dwarf_sales, princess_price, dwarf_price, superman_price)
         prophet_preds = lifecycle_stage_prediction(princess_sales, dwarf_sales, princess_price, dwarf_price, superman_price)
         lstm_preds = trend_analysis_prediction(princess_sales, dwarf_sales, princess_price, dwarf_price, superman_price)
@@ -200,6 +244,43 @@ def update_combined_weights():
         })
         combined_table_html = df.to_html(classes='table table-striped', index=False, border=0, justify='center')
 
+        # Generate updated regional predictions
+        regional_plots = {}
+        regional_tables = {}
+        regions = ['AMR', 'Europe', 'PAC']
+
+        for region in regions:
+            # Get predictions for this region using the same weights
+            predictions, _ = combined_prediction(
+                princess_sales=princess_plus_all_regions[region],
+                dwarf_sales=dwarf_plus_all_regions[region],
+                princess_price=princess_price,
+                dwarf_price=dwarf_price,
+                superman_price=superman_price,
+                ts_weight=ts_weight,
+                lc_weight=lc_weight,
+                trend_weight=trend_weight,
+                weighted_weight=weighted_weight
+            )
+            
+            # Create plot for this region
+            fig, ax = plt.subplots(figsize=(6, 3))
+            ax.plot(weeks, predictions, label='Prediction', marker='o')
+            ax.plot(weeks, princess_plus_all_regions[region], label='Princess History', linestyle='--', marker='x')
+            ax.plot(weeks, dwarf_plus_all_regions[region], label='Dwarf History', linestyle='--', marker='x')
+            ax.set_title(f'Regional Prediction - {region}')
+            ax.set_xlabel('Week')
+            ax.set_ylabel('Sales')
+            ax.legend()
+            regional_plots[region] = plot_to_base64(fig)
+            
+            # Create table for this region
+            df = pd.DataFrame({
+                'Week': weeks,
+                'Predicted Sales': np.round(predictions, 2)
+            })
+            regional_tables[region] = df.to_html(classes='table table-striped', index=False, border=0, justify='center')
+
         return jsonify({
             'status': 'success',
             'plot': combined_plot_img,
@@ -209,7 +290,9 @@ def update_combined_weights():
                 "Product Lifecycle Stage Prediction": lc_weight,
                 "Trend Analysis Prediction": trend_weight,
                 "Weighted Average Prediction": weighted_weight
-            }
+            },
+            'regional_plots': regional_plots,
+            'regional_tables': regional_tables
         })
 
     except Exception as e:

@@ -227,41 +227,16 @@ def combined_prediction(princess_sales, dwarf_sales, princess_price, dwarf_price
     trend_pred = trend_analysis_prediction(princess_sales, dwarf_sales, princess_price, dwarf_price, superman_price)
     weighted_pred = weighted_average_prediction(princess_sales, dwarf_sales, princess_price, dwarf_price, superman_price)
     
-    # Combine predictions
-    final_predictions = np.zeros(15)
-    
-    # Calculate new product launch growth rates (3%-5% random growth per week)
-    np.random.seed(42)
-    growth_rates = np.random.uniform(0.03, 0.05, 15)
-    
-    for week in range(15):
-        # Determine current stage
-        if week < 3:  # Launch period
-            stage_weight = 1.0
-        elif week < 10:  # Fluctuation period
-            stage_weight = 0.6
-        else:  # Stable period
-            stage_weight = 0.4
-        
-        # Combine predictions using provided weights
-        week_pred = (
-            time_series_pred[week] * ts_weight +
-            lifecycle_pred[week] * lc_weight +
-            trend_pred[week] * trend_weight +
-            weighted_pred[week] * weighted_weight
-        ) * stage_weight
-        
-        # Apply new product launch growth rate
-        if week < 3:
-            growth_multiplier = 1 + growth_rates[week] * 1.5
-        elif week < 10:
-            growth_multiplier = 1 + growth_rates[week]
-        else:
-            growth_multiplier = 1 + growth_rates[week] * 0.5
-        
-        final_predictions[week] = week_pred * growth_multiplier
+    # Combine predictions using provided weights
+    final_predictions = (
+        ts_weight * np.array(time_series_pred) +
+        lc_weight * np.array(lifecycle_pred) +
+        trend_weight * np.array(trend_pred) +
+        weighted_weight * np.array(weighted_pred)
+    )
     
     # Add some random fluctuation to make predictions more natural
+    np.random.seed(42)
     noise = np.random.normal(0, 0.03, 15)
     final_predictions = final_predictions * (1 + noise)
     
