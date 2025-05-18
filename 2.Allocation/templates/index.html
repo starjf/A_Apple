@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Allocation Analysis Results</title>
+    <style>
+        .plot-container {
+            margin: 20px;
+            text-align: center;
+        }
+        .plot-container img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 5px;
+        }
+        .debug-info {
+            margin: 20px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .interactive-container {
+            display: flex;
+            gap: 20px;
+            margin: 20px auto;
+            max-width: 1600px;
+            padding: 0 20px;
+        }
+        #interactive-chart {
+            flex: 2;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+        }
+        .data-table-container {
+            flex: 1;
+            min-width: 300px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .data-table th {
+            background-color: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #dee2e6;
+            color: #495057;
+            font-weight: 600;
+        }
+        .data-table td {
+            padding: 12px;
+            border-bottom: 1px solid #dee2e6;
+            color: #212529;
+        }
+        .data-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        .data-table .channel-name {
+            font-weight: 500;
+        }
+        .data-table .allocation-value {
+            text-align: right;
+            font-family: monospace;
+        }
+        .data-table .fulfillment-rate {
+            text-align: right;
+            color: #28a745;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            pointer-events: none;
+            display: none;
+        }
+        .table-title {
+            margin: 0 0 15px 0;
+            color: #495057;
+            font-size: 1.2em;
+            font-weight: 500;
+        }
+        .table-subtitle {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+    <script>
+        let weeklyData = null;
+        let channelData = null;
+        let selectedWeek = null;
+        let canvas, ctx;
+        let tooltip;
+
+        async function loadData() {
+            try {
+                const response = await fetch('/get_allocation_data');
+                const data = await response.json();
+                weeklyData = data.weekly;
+                channelData = data.channel;
+                initCanvas();
+                drawChart();
+                updateDataTable();
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+        }
+
+        function initCanvas() {
+            canvas = document.getElementById('interactive-chart');
+            ctx = canvas.getContext('2d');
+            tooltip = document.createElement('div');
+            tooltip.className = 'tooltip';
+            document.body.appendChild(tooltip);
+
+            // Set canvas size
+            canvas.width = canvas.offsetWidth;
+            canvas.height = 400;
+
+            // Add event listeners
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('click', handleClick);
+            canvas.addEventListener('mouseout', () => {
+                tooltip.style.display = 'none';
+            });
+        }
+
+        function drawChart() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const padding = { top: 40, right: 40, bottom: 60, left: 60 };
+            const barWidth = 50;
+            const spacing = 30;
+            const startX = padding.left;
+            const startY = canvas.height - padding.bottom;
+            const chartWidth = canvas.width - padding.left - padding.right;
+            const chartHeight = canvas.height - padding.top - padding.bottom;
+
+            // Draw background
+            ctx.fillStyle = '#f8f9fa';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw grid lines
+            ctx.strokeStyle = '#e9ecef';
+            ctx.lineWidth = 1;
+            const gridLines = 5;
+            for (let i = 0; i <= gridLines; i++) {
+                const y = startY - (chartHeight * i / gridLines);
+                ctx.beginPath();
+                ctx.moveTo(startX, y);
+                ctx.lineTo(canvas.width - padding.right, y);
+                ctx.stroke();
+
+                // Draw y-axis labels
+                const value = Math.round((Math.max(...weeklyData.map(w => w.value)) * i / gridLines));
+                ctx.fillStyle = '#6c757d';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'right';
+                ctx.fillText(value.toString(), startX - 10, y + 4);
+            }
+
+            // Draw title
+            ctx.fillStyle = '#212529';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Weekly Allocation Overview', canvas.width / 2, padding.top - 10);
+
+            // Draw weekly bars
+            weeklyData.forEach((week, index) => {
+                const x = startX + index * (barWidth + spacing);
+                const height = (week.value / Math.max(...weeklyData.map(w => w.value))) * chartHeight;
+                const y = startY - height;
+
+                // Draw bar shadow
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+                ctx.fillRect(x + 3, y + 3, barWidth, height);
+
+                // Draw bar
+                const gradient = ctx.createLinearGradient(x, y, x, startY);
+                if (selectedWeek === week.week) {
+                    gradient.addColorStop(0, '#2ecc71');
+                    gradient.addColorStop(1, '#27ae60');
+                } else {
+                    gradient.addColorStop(0, '#3498db');
+                    gradient.addColorStop(1, '#2980b9');
+                }
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, y, barWidth, height);
+
+                // Draw value
+                ctx.fillStyle = '#2c3e50';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                // Position value above the bar with some padding
+                const valueY = Math.max(y - 15, padding.top + 10);
+                ctx.fillText(week.value.toString(), x + barWidth/2, valueY);
+
+                // Draw week label
+                ctx.fillStyle = '#6c757d';
+                ctx.font = '13px Arial';
+                ctx.fillText(week.week, x + barWidth/2, startY + 20);
+            });
+
+            // If a week is selected, draw channel breakdown
+            if (selectedWeek) {
+                const weekIndex = weeklyData.findIndex(w => w.week === selectedWeek);
+                const x = startX + weekIndex * (barWidth + spacing);
+                const weekData = channelData[selectedWeek];
+                
+                // Draw channel segments
+                let currentY = startY;
+                weekData.forEach(channel => {
+                    const height = (channel.value / weeklyData[weekIndex].value) * chartHeight;
+                    currentY -= height;
+                    
+                    // Draw channel segment shadow
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+                    ctx.fillRect(x + 3, currentY + 3, barWidth, height);
+                    
+                    // Draw channel segment
+                    const channelGradient = ctx.createLinearGradient(x, currentY, x, currentY + height);
+                    channelGradient.addColorStop(0, channel.color);
+                    channelGradient.addColorStop(1, channel.color.replace('0.7', '0.9'));
+                    ctx.fillStyle = channelGradient;
+                    ctx.fillRect(x, currentY, barWidth, height);
+                    
+                    // Draw channel label if there's enough space
+                    if (height > 25) {
+                        // Draw semi-transparent background for text
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                        ctx.fillRect(x, currentY + height/2 - 10, barWidth, 20);
+                        
+                        // Draw channel name
+                        ctx.fillStyle = '#fff';
+                        ctx.font = 'bold 11px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(channel.name, x + barWidth/2, currentY + height/2 + 4);
+                        
+                        // Draw channel value
+                        ctx.fillStyle = '#fff';
+                        ctx.font = '10px Arial';
+                        ctx.fillText(channel.value.toString(), x + barWidth/2, currentY + height/2 + 18);
+                    }
+                });
+
+                // Draw total value at the top
+                ctx.fillStyle = '#2c3e50';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(weeklyData[weekIndex].value.toString(), x + barWidth/2, padding.top + 20);
+            }
+
+            // Draw axes
+            ctx.strokeStyle = '#dee2e6';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(startX, padding.top);
+            ctx.lineTo(startX, startY);
+            ctx.lineTo(canvas.width - padding.right, startY);
+            ctx.stroke();
+        }
+
+        function updateDataTable() {
+            const tableContainer = document.getElementById('data-table-container');
+            if (!selectedWeek) {
+                tableContainer.innerHTML = `
+                    <h3 class="table-title">Weekly Allocation Summary</h3>
+                    <p class="table-subtitle">Click on a week to see detailed channel allocation</p>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Week</th>
+                                <th>Total Allocation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${weeklyData.map(week => `
+                                <tr>
+                                    <td class="channel-name">${week.week}</td>
+                                    <td class="allocation-value">${week.value}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } else {
+                const weekData = channelData[selectedWeek];
+                const weekTotal = weeklyData.find(w => w.week === selectedWeek).value;
+                
+                tableContainer.innerHTML = `
+                    <h3 class="table-title">Channel Allocation - ${selectedWeek}</h3>
+                    <p class="table-subtitle">Total Allocation: ${weekTotal} units</p>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Channel</th>
+                                <th>Allocation</th>
+                                <th>% of Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${weekData.map(channel => `
+                                <tr>
+                                    <td class="channel-name">${channel.name}</td>
+                                    <td class="allocation-value">${channel.value}</td>
+                                    <td class="fulfillment-rate">${((channel.value / weekTotal) * 100).toFixed(1)}%</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            }
+            tableContainer.classList.add('fade-in');
+        }
+
+        function handleMouseMove(event) {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            const padding = 60;
+            const barWidth = 60;
+            const spacing = 20;
+            const startX = padding;
+
+            weeklyData.forEach((week, index) => {
+                const barX = startX + index * (barWidth + spacing);
+                if (x >= barX && x <= barX + barWidth) {
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = event.pageX + 10 + 'px';
+                    tooltip.style.top = event.pageY + 10 + 'px';
+                    tooltip.textContent = `${week.week}: ${week.value} units`;
+                    return;
+                }
+            });
+        }
+
+        function handleClick(event) {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+
+            const padding = { top: 40, right: 40, bottom: 60, left: 60 };
+            const barWidth = 50;
+            const spacing = 30;
+            const startX = padding.left;
+
+            weeklyData.forEach((week, index) => {
+                const barX = startX + index * (barWidth + spacing);
+                if (x >= barX && x <= barX + barWidth) {
+                    selectedWeek = selectedWeek === week.week ? null : week.week;
+                    drawChart();
+                    updateDataTable();
+                    return;
+                }
+            });
+        }
+
+        // Load data when page loads
+        window.onload = loadData;
+    </script>
+</head>
+<body>
+    <h1>Allocation Analysis Results</h1>
+    
+    <div class="interactive-container">
+        <canvas id="interactive-chart"></canvas>
+        <div id="data-table-container" class="data-table-container"></div>
+    </div>
+    
+    <div class="plot-container">
+        <h2>Supply vs Demand Summary</h2>
+        <img src="{{ url_for('static', filename=supply_demand_summary) }}" 
+             alt="Supply vs Demand Summary"
+             onerror="this.onerror=null; console.log('Error loading image: ' + this.src);">
+    </div>
+
+    <div class="plot-container">
+        <h2>Supply vs Demand by Product</h2>
+        <img src="{{ url_for('static', filename=supply_demand_product) }}" 
+             alt="Supply vs Demand by Product"
+             onerror="this.onerror=null; console.log('Error loading image: ' + this.src);">
+    </div>
+
+    <div class="debug-info">
+        <h3>Debug Information</h3>
+        <p>Supply Demand Summary Image: {{ supply_demand_summary }}</p>
+        <p>Supply Demand Product Image: {{ supply_demand_product }}</p>
+    </div>
+</body>
+</html>
