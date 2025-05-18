@@ -1,0 +1,62 @@
+.price-input {
+    margin-bottom: 15px;
+}
+
+.weight-input {
+    margin-bottom: 15px;
+}
+
+.weight-input label {
+    display: block;
+    margin-bottom: 5px;
+    color: #333;
+    font-weight: 500;
+}
+
+.weight-input input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.weight-input input:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+}
+
+.sidebar-section {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.sidebar-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #333;
+    font-size: 18px;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 8px;
+}
+
+.plot-img {
+    max-width: 100%;
+    height: auto;
+}
+
+.plot-container {
+    margin-bottom: 20px;
+}
+
+.table-container {
+    margin-bottom: 40px;
+}
+
+.col-md-6 {
+    padding: 10px;
+} 

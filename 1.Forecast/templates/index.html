@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sales Forecast Analysis</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <style>
+        .plot-img {max-width: 100%; height: auto;}
+        .plot-container {margin-bottom: 20px;}
+        .table-container {margin-bottom: 40px;}
+        /* Optional: Add some padding/margin to the columns for spacing */
+        .col-md-6 { padding: 10px; }
+    </style>
+</head>
+<body>
+<div class="container mt-4">
+    <h1 class="mb-4 text-center">Sales Forecast Analysis System</h1>
+    <form method="post" class="form-inline mb-4 justify-content-center">
+        <div class="form-group mr-3">
+            <label for="princess_price" class="mr-2">Princess Price</label>
+            <input type="number" step="0.01" class="form-control" id="princess_price" name="princess_price" value="{{ princess_price }}">
+        </div>
+        <div class="form-group mr-3">
+            <label for="dwarf_price" class="mr-2">Dwarf Price</label>
+            <input type="number" step="0.01" class="form-control" id="dwarf_price" name="dwarf_price" value="{{ dwarf_price }}">
+        </div>
+        <div class="form-group mr-3">
+            <label for="superman_price" class="mr-2">Superman Price</label>
+            <input type="number" step="0.01" class="form-control" id="superman_price" name="superman_price" value="{{ superman_price }}">
+        </div>
+        <button type="submit" class="btn btn-primary">Update Forecast</button>
+    </form>
+
+    {% if plots["Overall Sales Trend (All Regions)"] %}
+        <h3 class="mt-4">Overall Sales Trend (All Regions)</h3>
+        <div class="row">
+            <div class="col-md-12 plot-container">
+                <img src="data:image/png;base64,{{ plots["Overall Sales Trend (All Regions)"] }}" class="plot-img" alt="Overall Sales Trend (All Regions)">
+            </div>
+        </div>
+        <hr>
+    {% endif %}
+
+    {% for name, img in plots.items() %}
+        {% if name != "Overall Sales Trend (All Regions)" %}
+            <h3 class="mt-4">{{ name }}</h3>
+            {% if name == "Combined Prediction" %}
+                <p><strong>Weights Used:</strong></p>
+                <div class="weight-inputs-container mb-3">
+                    <div class="form-group mr-3">
+                        <label for="ts_weight">Time Series Weighted Prediction:</label>
+                        <input type="number" step="0.01" class="form-control" id="ts_weight" name="ts_weight" value="{{ weights['Time Series Weighted Prediction'] }}" min="0" max="1">
+                    </div>
+                    <div class="form-group mr-3">
+                        <label for="lc_weight">Product Lifecycle Stage Prediction:</label>
+                        <input type="number" step="0.01" class="form-control" id="lc_weight" name="lc_weight" value="{{ weights['Product Lifecycle Stage Prediction'] }}" min="0" max="1">
+                    </div>
+                    <div class="form-group mr-3">
+                        <label for="trend_weight">Trend Analysis Prediction:</label>
+                        <input type="number" step="0.01" class="form-control" id="trend_weight" name="trend_weight" value="{{ weights['Trend Analysis Prediction'] }}" min="0" max="1">
+                    </div>
+                    <div class="form-group mr-3">
+                        <label for="weighted_weight">Weighted Average Prediction:</label>
+                        <input type="number" step="0.01" class="form-control" id="weighted_weight" name="weighted_weight" value="{{ weights['Weighted Average Prediction'] }}" min="0" max="1">
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="updateCombinedPrediction()">Update Combined Prediction</button>
+                </div>
+            {% endif %}
+            <div class="row">
+                <div class="col-md-6 plot-container">
+                    <img id="plot-{{ name | replace(' ', '-') }}" src="data:image/png;base64,{{ img }}" class="plot-img" alt="{{ name }} Forecast">
+                </div>
+                <div class="col-md-6 table-container" id="table-{{ name | replace(' ', '-') }}">
+                    {{ tables[name]|safe }}
+                </div>
+            </div>
+            <hr>
+        {% endif %}
+    {% endfor %}
+</div>
+<script src="{{ url_for('static', filename='combined_weights.js') }}"></script>
+</body>
+</html> 
